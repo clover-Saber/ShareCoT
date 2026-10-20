@@ -1,0 +1,72 @@
+{
+  "scope": "main experiment only, including the main-table shuffled control",
+  "reference_seed": 44,
+  "training_seeds": [
+    43,
+    44,
+    50
+  ],
+  "data_files": [
+    "data/train.csv",
+    "data/val.csv",
+    "data/test.csv",
+    "data/rationales.jsonl"
+  ],
+  "target": "shared_trip_authorized",
+  "input_features": [
+    "fare",
+    "trip_miles",
+    "trip_seconds",
+    "additional_charges",
+    "pickup_to_center_distance_km",
+    "dropoff_to_center_distance_km",
+    "trip_start_timestamp",
+    "dropoff_poi_category",
+    "weather_dewpoint_2m"
+  ],
+  "epochs": 5,
+  "train_batch_size": 1,
+  "gradient_accumulation": 8,
+  "learning_rate": 0.0001,
+  "qwen_backbone": "Qwen2.5-7B-Instruct",
+  "lora": {
+    "r": 8,
+    "alpha": 16,
+    "dropout": 0.05
+  },
+  "sharecot_weighting": "adaptive",
+  "classification_class_weight": null,
+  "reasoning_normalization": "per_rationale_token_mean_then_all_rows_mean",
+  "single_cot": "instruction-split mixed supervision; generate reason before final label",
+  "dhrd": {
+    "rationale_source": "external plain teacher rationales without SHAP",
+    "rationale_count": 946,
+    "lm_to_classification_ratio": "1:1"
+  },
+  "checkpoint_selection": "highest validation Macro-F1; earlier epoch on ties",
+  "paired_resamples": 5000,
+  "per_model_bootstrap_resamples": 1000,
+  "threshold": 0.5,
+  "environment": {
+    "python": "3.10.0",
+    "torch": "2.5.1",
+    "cuda": "12.4",
+    "transformers": "5.3.0",
+    "peft": "0.12.0",
+    "scikit_learn": "1.7.2"
+  },
+  "adaptive_objective": "0.5*(exp(-s_cls)*BCE+s_cls)+0.5*mask*(exp(-s_lm)*CE+s_lm)",
+  "adaptive_initial_coefficients": {
+    "classification": 0.5,
+    "reasoning": 0.5
+  },
+  "optional_data_files": [
+    "data/semantic_dictionary.json"
+  ],
+  "serialization": "nine-feature-semantic-dictionary-usd-v2",
+  "baseline_protocols": {
+    "single_cot": "mixed rationale/label supervision; reason+pred instruction for annotated rows and pred-only instruction for label-only rows; reason+pred at inference",
+    "dhrd": "two-layer MLP classification head; full-sequence LM targets; fixed LM:classification=1:1; independent plain teacher rationales",
+    "text_baselines": "English serialization of the same nine features with categorical decoding and units; fixed local BERT tokenizer"
+  }
+}
