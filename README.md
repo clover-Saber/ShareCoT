@@ -1,44 +1,85 @@
-# ShareCoT 主实验代码
+# ShareCoT
 
-本包已按当前修订稿对齐训练公式、输入序列化和目标环境。自适应目标现在严格包含式（6）的 1/2 系数，费用文本明确标注 USD；这些更改会影响后续训练。旧版模型、日志和论文数值仍属于原运行，不能直接视为本修订代码重新训练所得的结果。修改前的代码包另有备份。
+Code and available datasets for **ShareCoT: A Real-Time Expert Model for Ridesharing Willingness Prediction via Dual-Head LLM Distillation**.
 
-仅收录当前主表及三次训练统计所需代码：ShareCoT、Direct-FT、修正后的 Single-CoT、无 SHAP 理由版 DHRD、九个传统/深度基线、API 基线，以及主表的 shuffled 对照。未附带任何数据、理由文本、评分、预测、结果、日志或模型权重。
+ShareCoT predicts recorded ride-sharing authorization from nine trip features. A dual-head Qwen2.5-7B-Instruct student combines classification labels for all training records with auxiliary rationale supervision for an annotated subset. Classification uses the final prompt-token representation without autoregressive rationale generation.
 
-## 文件
+This release includes the main-comparison implementations, repeated-run statistics, and shuffled-rationale control. The rationale corpus, historical predictions, run logs, and model weights are not included. The loss formula, serialization, and dependency configuration incorporate manuscript-alignment changes; historical results have not been revalidated with these changes.
 
-- `code/protocol.py`：固定九特征和特征提示词。
-- `code/train_llm.py`、`code/loss_weighting.py`：ShareCoT / Direct-FT 训练及自适应权重。
-- `code/train_singlecot.py`：最终 instruction-split 单头混合监督；测试时完整生成理由与标签。
-- `code/dhrd_model.py`、`code/train_dhrd.py`：DHRD 双头结构与 1:1 全序列监督训练；理由由外部提供，不能替换为 ShareCoT 的 SHAP 理由。
-- `code/baselines_suite.py`：Logistic Regression、Random Forest、XGBoost、LogitBoost、Gradient Boosting。
-- `code/run_adaboost.py`：主实验 AdaBoost 实现与验证集搜索。
-- `code/baselines_text_suite.py`：使用原始值英文序列化的 Vanilla Transformer、TextCNN、BERT；这三个方法应使用本脚本。
-- `code/api_suite.py`：当前九特征的 zero-shot / 4-shot 调用、重试、解析与缓存。
-- `code/shuffle_rationales.py`：主表的 seed44 循环错配理由对照。
-- `code/main_statistics.py`：主表指标、单模型 CI、三次训练均值和样本标准差、配对检验。
-- `configs/main_experiment.json`：训练与统计口径说明；不是额外训练调度器。
-- `SOURCE_MANIFEST.json`：来源与代码哈希、可移植性修改说明。
+## Repository structure
 
-## 环境和输入
+| Path | Contents |
+| --- | --- |
+| `code/protocol.py` | Nine-feature input protocol and prompt serialization |
+| `code/train_llm.py`, `code/loss_weighting.py` | ShareCoT / Direct-FT training and adaptive or fixed loss weighting |
+| `code/train_singlecot.py` | Single-head, instruction-split mixed supervision; rationale and label generation at inference |
+| `code/dhrd_model.py`, `code/train_dhrd.py` | DHRD adaptation with a two-layer classification head and full-sequence LM supervision |
+| `code/baselines_suite.py` | Logistic Regression, Random Forest, XGBoost, LogitBoost, and Gradient Boosting |
+| `code/run_adaboost.py` | AdaBoost training and validation-based parameter selection |
+| `code/baselines_text_suite.py` | Vanilla Transformer, TextCNN, and BERT text baselines |
+| `code/api_suite.py` | Zero-shot and four-shot API evaluation, parsing, retries, and caching |
+| `code/shuffle_rationales.py` | Seed-44 cyclic rationale reassignment for the shuffled control |
+| `code/main_statistics.py` | Metrics, bootstrap intervals, repeated-run summaries, and paired tests |
+| `configs/main_experiment.json` | Main-experiment settings and evaluation conventions |
+| `SOURCE_MANIFEST.json` | Source provenance, code hashes, and documented packaging changes |
+| `tests/` | Offline regression checks |
 
-按论文使用独立 Python 3.10.0 环境安装 `requirements.txt`，Transformers 固定为 5.3.0。scikit-learn 采用支持 Python 3.10 的 1.7.2（原 1.8.0 要求 Python 3.11 及以上）。PyTorch 需要与目标机器 CUDA 驱动兼容的安装版本；7B 训练需要支持 BF16 的 CUDA GPU。本包不附模型，不自动下载模型。
+## Included data
 
-每个训练运行使用单独的 `--root`，其中预先放入：
+| Directory | Contents |
+| --- | --- |
+| `data/01_existing_upstream/` | An existing merged 100,000-record upstream table, including trip metadata, weather, and POI fields |
+| `data/02_feature_tables/` | Processed 10,000-, 50,000-, and 100,000-record feature tables; these retain historical fields such as `tip_paid` |
+| `data/03_current_formal_main/` | Current main-experiment `train.csv`, `val.csv`, and `test.csv`, containing 8,000, 1,000, and 1,000 records |
 
-```text
-ROOT/data/train.csv
-ROOT/data/val.csv
-ROOT/data/test.csv
-ROOT/data/rationales.jsonl
+Use the splits in `data/03_current_formal_main/` for the main experiment. They contain the registered nine inputs, sample IDs, and labels, with tipping-derived inputs excluded. These directories represent different processing stages and should not be concatenated into one dataset.
+
+## Environment
+
+Use a dedicated Python 3.10.0 environment and install the dependencies in `requirements.txt`:
+
+```bash
+python -m pip install -r requirements.txt
 ```
 
-CSV 必须含 `sample_id`、`shared_trip_authorized` 和配置中列出的九个特征。目标为 0/1，三个 split 的 sample_id 不重叠。正式主实验使用既定的 8000/1000/1000 划分；本包不重新随机划分已有数据。LLM 训练 CSV 必须恰好包含这 11 列。
+Target versions include PyTorch 2.5.1, Transformers 5.3.0, PEFT 0.12.0, and scikit-learn 1.7.2. The scikit-learn pin supports Python 3.10. Install a PyTorch build compatible with the target CUDA environment. The 7B training scripts require a CUDA GPU with BF16 support and locally available model weights.
 
-若 timestamp 或 POI 在 CSV 中已是可读文字，可直接使用。若它们是离散编号，需在同一 `ROOT/data/semantic_dictionary.json` 提供由数据预处理确定的真实“编号→文字”映射；各训练、验证、测试使用相同字典。可复制 `configs/semantic_dictionary.example.json` 的结构填入真实映射。程序不会猜测编号的含义，也不会从测试标签生成字典；映射文件哈希会写入运行配置。传统数值基线的时间字段仍要求可解析的实际日期时间。
+## Prepare an experiment
 
-外部 JSONL 的每条理由以 `sample_id` 对齐训练样本，含 `reason`、`accepted`，可含一致的 `label`；ShareCoT 与 Single-CoT 使用正式 SHAP 理由，DHRD 必须使用独立的无 SHAP 教师理由。Direct-FT 为绑定相同输入也要求此文件，但不使用理由训练。语料构建和评审代码不在本次主实验包范围内。
+Use a separate `ROOT` directory for each method and seed. Copy the three current main-experiment CSV files into this layout:
 
-下面在包根目录执行。`ROOT`、`QWEN_DIR`、`BERT_DIR` 需替换为自己的实际路径。不同方法/种子应放在独立 ROOT，防止已有结果和新配置混用。
+```text
+ROOT/
+  data/
+    train.csv
+    val.csv
+    test.csv
+    rationales.jsonl
+```
+
+Each CSV must contain exactly `sample_id`, `shared_trip_authorized`, and these nine input columns:
+
+```text
+fare
+trip_miles
+trip_seconds
+additional_charges
+pickup_to_center_distance_km
+dropoff_to_center_distance_km
+trip_start_timestamp
+dropoff_poi_category
+weather_dewpoint_2m
+```
+
+Labels are binary: `0` for Reject and `1` for Accept. Sample IDs must be unique within each split and disjoint across splits. The scripts preserve the supplied partitions.
+
+Timestamps and POI categories in the current formal splits are readable text. Encoded category indices require their actual mappings in `ROOT/data/semantic_dictionary.json`, following `configs/semantic_dictionary.example.json`. Use the same vocabulary across all splits. Its file hash is recorded in the run configuration. Tabular baselines require parseable date-time values for the timestamp field.
+
+Rationales must be supplied separately. Each JSONL record is aligned to a training `sample_id` and contains `reason` and `accepted`, with an optional matching `label`. The main configuration uses 946 accepted training rationales. ShareCoT and Single-CoT use the SHAP-guided corpus; DHRD requires an independent plain-teacher corpus without SHAP guidance. Direct-FT also requires the rationale file to bind input provenance, but optimizes classification loss only. Rationale construction and review scripts are outside this release's implementation scope.
+
+## Train the LLM models
+
+Run commands from the repository root. Replace `ROOT`, `QWEN_DIR`, and `BERT_DIR` with actual paths. Use a new experiment directory when changing the method, seed, data, or configuration.
 
 ```bash
 python code/train_llm.py --root ROOT --method sharecot --model-dir QWEN_DIR --seed 44 --epochs 5 --weighting adaptive
@@ -47,9 +88,11 @@ python code/train_singlecot.py --root ROOT --model-dir QWEN_DIR --seed 44 --epoc
 python code/train_dhrd.py --root ROOT --method dhrd_style --model-dir QWEN_DIR --seed 44 --epochs 5 --weighting fixed_1
 ```
 
-Direct-FT 的 `fixed_3` 是原脚本接口要求；其训练实际只优化分类 BCE。7B 的监督和损失归一化按论文执行：每条理由先对有效目标 token 求平均，再对全部记录平均，缺失理由时同时屏蔽理由损失及其自适应正则项。自适应任务项及正则项均包含式（6）的 1/2，两个初始任务系数为 0.5；固定比例控制仍为 1:1、3:1、5:1。各训练自行选择验证 Macro-F1 最高的检查点。
+The `fixed_3` argument for Direct-FT is required by its command-line interface; it does not activate rationale training. ShareCoT averages rationale loss over valid target tokens within each annotated record, then combines losses across all sampled records. Missing rationales mask both the rationale loss and its adaptive regularizer. The adaptive objective includes the one-half coefficients in manuscript Eq. (6), giving initial task coefficients of 0.5. Fixed reasoning-to-classification coefficients are 1:1, 3:1, and 5:1.
 
-三次训练分别显式指定 seed 43、44、50；表4沿用44号参考运行。每个种子必须使用相同数据、骨干和训练配置。
+Checkpoints are selected by the highest validation Macro-F1. For repeated training, run seeds 43, 44, and 50 with the same data, backbone, and training settings. Seed 44 is the main-table reference run.
+
+## Train the tabular and neural text baselines
 
 ```bash
 python code/baselines_suite.py --root ROOT --method logistic_regression --seed 44 --device cpu
@@ -63,29 +106,31 @@ python code/baselines_text_suite.py --root ROOT --method textcnn --seed 44 --dev
 python code/baselines_text_suite.py --root ROOT --method bert --seed 44 --device cpu --bert-model BERT_DIR --max-length 256
 ```
 
-神经文本基线仍使用同一个本地 BERT tokenizer。保留 CPU 训练命令以匹配正式主实验配置，不把另一种表格网络当成 Vanilla Transformer 或 TextCNN。
+The three neural text baselines use English serialization of the nine features and the same local BERT tokenizer. Qwen uses the Chinese chat-template prompts implemented in `protocol.py`. Both serialization paths apply category mappings when needed and include numerical units. The CPU commands retain the main-experiment training configuration.
 
-## 主表的 shuffled 对照
+## Shuffled-rationale control
 
-先把同一正式划分放到独立的 SHUFFLED_ROOT，复制相同训练和验证 CSV。只将训练理由按原实验的循环错排重新配对，保留接收样本的分类标签和理由覆盖掩码：
+Prepare an independent `SHUFFLED_ROOT` with the same train, validation, and test CSV files and any required semantic dictionary. Reassign accepted training rationales while preserving each recipient's classification label and rationale-coverage mask:
 
 ```bash
 python code/shuffle_rationales.py --input MAIN_ROOT/data/rationales.jsonl --output SHUFFLED_ROOT/data/rationales.jsonl
 python code/train_llm.py --root SHUFFLED_ROOT --method sharecot --model-dir QWEN_DIR --seed 44 --epochs 5 --weighting adaptive
 ```
 
-## API 基线
+## API baselines
 
-先按 `.env.example` 在终端设置环境变量。本包不会读取服务器 `.env`，不自动建立 SSH 代理，也不会在整理/验证时发起 API 请求。
+Set the environment variables shown in `.env.example` in your shell. The template is not loaded automatically.
 
 ```bash
 python code/api_suite.py --root API_ROOT --workers 6
 python code/api_suite.py --root NEW_GEMINI_ROOT --workers 6 --models gemini-3.1-pro-preview --shots 0
 ```
 
-四样本条件下，API_ROOT 的 train.csv 和 rationales.jsonl 提供训练集内的四个演示（每类两个）；仅运行 zero-shot 时只需 test.csv，以及编号类别需要的语义字典。sample_id 始终按字符串读取，保留前导零。test.csv 决定实际评估样本。本包不附带100条或1000条样本，也不拼接历史测试结果。API别名、随机性和服务端版本可能随提供方变化；若重跑同一条件，使用新ROOT。缓存绑定脚本、序列化协议、语义字典和实际服务 endpoint；任一条件改变均拒绝复用原配置。temperature=0，输出上限512 token。
+Four-shot evaluation uses `train.csv` and accepted `rationales.jsonl` entries to select two training demonstrations per class. Zero-shot-only evaluation requires `test.csv` and a semantic dictionary only when category values are encoded. Sample IDs are read as strings, preserving leading zeros. The supplied `test.csv` defines the evaluated records.
 
-## 主实验统计
+API calls use temperature 0 and a 512-token output limit. Provider aliases and server-side versions can change. Cached responses are bound to the script, serialization protocol, semantic dictionary, and endpoint; changed conditions require a new experiment directory.
+
+## Statistical evaluation
 
 ```bash
 python code/main_statistics.py model --predictions PREDICTIONS.csv --resamples 1000
@@ -94,20 +139,20 @@ python code/main_statistics.py paired --reference SHARECOT.csv --comparator SHUF
 python code/main_statistics.py multiseed --predictions SEED43.csv SEED44.csv SEED50.csv
 ```
 
-预测文件需含 `sample_id,y_true,y_pred`。配对检验会按编号对齐并验证真实标签一致。差值统计量为 ShareCoT Macro-F1 减去对照；CI 为配对 percentile bootstrap，置换为逐记录0.5概率交换两预测，采用双侧加一校正。统计模块不嵌入任何实验值。
+Prediction files require `sample_id,y_true,y_pred`. Paired comparisons align records by ID and verify matching ground-truth labels. The difference is reference Macro-F1 minus comparator Macro-F1. Confidence intervals use paired percentile bootstrap resampling. Two-sided permutation tests independently swap the two predictions for each record with probability 0.5 and apply an add-one correction. Repeated-run summaries use the sample standard deviation.
 
-这些脚本运行后会在用户指定目录生成结果；交付包本身不包含结果。`SOURCE_MANIFEST.json` 列明全部整理改动。完整训练复现仍需外部正式数据、语料、本地骨干与对应硬件环境。
+## Baseline supervision protocols
 
-## 基线协议说明
+- **Single-CoT:** annotated records request and supervise `reason,pred`; label-only records request and supervise `pred`. Validation and test prompts request `reason,pred`. The model uses a single language-model head.
+- **DHRD:** a two-layer MLP classification head reads the prompt boundary. Full-sequence LM supervision is combined with classification at a fixed 1:1 ratio, using independent plain-teacher rationales.
+- **Neural text baselines:** Vanilla Transformer, TextCNN, and BERT share the English feature serialization and BERT tokenizer implemented in `baselines_text_suite.py`.
 
-- Single-CoT 按混合监督训练：有理由记录请求并监督 `reason,pred`；标签记录请求并监督 `pred`；验证和测试请求 `reason,pred`。这仍是单语言模型头，不添加分类头。
-- DHRD 使用两层 MLP 分类头、全序列 LM 监督和固定 1:1 联合目标，分类头只读取 prompt 边界；理由须为独立无 SHAP 教师语料。
-- TextCNN、Transformer 和 BERT 对相同九项特征使用英文序列化及相同 BERT tokenizer；Qwen 使用中文 chat template。两类序列化均应用类别字典并标明数值单位。论文未规定上述基线细节必须与 ShareCoT 完全相同，因此保留各自算法与训练目标。
-
-## 离线回归检查
+## Offline regression checks
 
 ```bash
 python -B -m unittest discover -s tests -v
 ```
 
-测试覆盖论文式（6）、缺失理由的损失/正则掩码、系数记录、类别字典、单位、特征输入边界，以及 API 的字符串 ID、zero-shot 独立性和缓存约束。无 GPU 环境下损失公式通过执行实际方法的标量适配器检查，不能代替 PyTorch 自动求导或 Qwen/PEFT 集成测试。API 测试使用离线传输替身，不产生真实调用。
+The checks cover Eq. (6), missing-rationale masking, coefficient reporting, category dictionaries, units, feature-only input boundaries, string IDs, zero-shot independence, and API cache identity. Formula checks execute the actual loss methods through a scalar adapter; they do not replace PyTorch autograd or full Qwen/PEFT integration tests. API tests use an offline transport substitute and make no external calls.
+
+Scripts write outputs to the specified experiment directories. Full training reproduction additionally requires the corresponding rationale corpora, local backbone weights, and suitable hardware.

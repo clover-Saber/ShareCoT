@@ -154,7 +154,7 @@
   "additional_files": [
     {
       "file": "README.md",
-      "packaged_sha256": "bcb4dadd8687f74f581131888f3ca580d7fe7daf2229a8f288168b1491faa991"
+      "packaged_sha256": "4c4d338982333ec2769eea57ed16a622610f478c743bcfe4aa7896c2f495e96c"
     },
     {
       "file": "requirements.txt",
