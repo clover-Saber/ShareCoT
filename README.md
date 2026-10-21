@@ -4,8 +4,6 @@ Code and available datasets for **ShareCoT: A Real-Time Expert Model for Ridesha
 
 ShareCoT predicts recorded ride-sharing authorization from nine trip features. A dual-head Qwen2.5-7B-Instruct student combines classification labels for all training records with auxiliary rationale supervision for an annotated subset. Classification uses the final prompt-token representation without autoregressive rationale generation.
 
-This release includes the main-comparison implementations, repeated-run statistics, and shuffled-rationale control. The rationale corpus, historical predictions, run logs, and model weights are not included. The loss formula, serialization, and dependency configuration incorporate manuscript-alignment changes; historical results have not been revalidated with these changes.
-
 ## Repository structure
 
 | Path | Contents |
@@ -153,6 +151,3 @@ Prediction files require `sample_id,y_true,y_pred`. Paired comparisons align rec
 python -B -m unittest discover -s tests -v
 ```
 
-The checks cover Eq. (6), missing-rationale masking, coefficient reporting, category dictionaries, units, feature-only input boundaries, string IDs, zero-shot independence, and API cache identity. Formula checks execute the actual loss methods through a scalar adapter; they do not replace PyTorch autograd or full Qwen/PEFT integration tests. API tests use an offline transport substitute and make no external calls.
-
-Scripts write outputs to the specified experiment directories. Full training reproduction additionally requires the corresponding rationale corpora, local backbone weights, and suitable hardware.
