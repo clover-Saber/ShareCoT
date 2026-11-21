@@ -87,14 +87,14 @@ def main(suite,source,pilot,multiseed):
         if name.startswith('04_'):
             remapped=remap_clean_rationales(original_train,cleaned['train'],corpus)
             (root/'data/rationales_remapping_reference.jsonl').write_text(''.join(json.dumps(x,ensure_ascii=False)+'\n' for x in remapped),encoding='utf-8')
-            write_json(root/'data/rationale_summary.json',{'source':str(mainroot/'data/rationales.jsonl'),'selected_reference':len(remapped),'accepted_reference':sum(bool(x.get('accepted')) for x in remapped),'complete':False,'policy':'Fresh SHAP fitted only on this enlarged training split and fresh CoT are required. Old annotated-member remapping is a reference only: its original guidance model was trained on some rows now assigned to enlarged validation/test.'})
+            write_json(root/'data/rationale_summary.json',{'source':str(mainroot/'data/rationales.jsonl'),'selected_reference':len(remapped),'accepted_reference':sum(bool(x.get('accepted')) for x in remapped),'complete':False,'policy':'-'})
     config=json.loads((source/'补充实验-不同区域划分/region_split_config.json').read_text(encoding='utf-8'))['config']
     for region in ['center','suburb']:
         paths={split:source/'补充实验-不同区域划分/data'/f'chicago_{split}_{region}.csv' for split in ['train','val','test']}
         frames={k:pd.read_csv(v) for k,v in paths.items()}
         root=suite/'experiments'/f'06_region_{region}'
         write_membership(root,frames,{k:{'path':str(v)} for k,v in paths.items()},config)
-    write_json(suite/'data_preparation.json',{'main_reused_seed':44,'features':FEATURE_COLS,'scale_rationale_policy':'fresh train-only SHAP and fresh corpus; matched reference annotations are not student input','region_rule':config,'scale_time_and_region_corpus':'fresh generation pending','complete':True})
+    write_json(suite/'data_preparation.json',{'main_reused_seed':44,'features':FEATURE_COLS,'scale_rationale_policy':'-','complete':True})
     print(json.dumps(json.loads((suite/'data_preparation.json').read_text(encoding='utf-8')),ensure_ascii=False))
 
 if __name__=='__main__':
